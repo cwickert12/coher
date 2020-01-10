@@ -21,7 +21,7 @@ def coh(lat,natom,maxb,emax):
               {"a":2.4573e-8,"c":6.700e-8,"m":12.011,"x":5.5},
               {"a":2.2856e-8,"c":3.5832e-8,"m":9.01,"x":7.53},
               {"a":2.695e-8,"c":4.39e-8,"m":12.5,"x":11.862},
-              {"a":2.285e-8,"m":26.7495,"x":1.495},
+              {"a":2.856e-8,"m":26.7495,"x":1.495},
               {"a":3.57e-8,"m":207,"x":11.115},
               {"a":2.47e-8,"m":55.454,"x":11.22}
               ]
@@ -40,7 +40,7 @@ def coh(lat,natom,maxb,emax):
     twopis=39.478417604362633
     twothd=0.666666666667e0
     eps=0.05
-    toler=1e-7
+    toler=1e-5
     wint=0
     
     a=materials[lat-1]["a"]
@@ -135,16 +135,16 @@ def coh(lat,natom,maxb,emax):
        c1=3/(a*a)
        scon=scoh*(4*np.pi)**2/(16*a*a*a*econ)
        phi=ulim/twopis
-       i1m=int(a*np.sqrt(phi))
        i1m=15
        k=0
+       n=0
        for i1 in range(-i1m,i1m):
           i2m=i1m
           for i2 in range(-i2m,i2m):
              i3m=i1m
              for i3 in range(-i3m,i3m):
                 tsq=tausq(i1,i2,i3,c1,0,twothd,twopis,lat)
-                if tsq>0 and tsq<=ulim:
+                if tsq>0.0 and tsq<=ulim:
                    tau=np.sqrt(tsq)
                    w=np.exp(-tsq*t2*wint)/tau
                    f=w*formf(lat,i1,i2,i3)
@@ -156,6 +156,8 @@ def coh(lat,natom,maxb,emax):
        imax=k
     
     else:
+        c1=2/(a*a)
+        scon=scoh*(4*np.pi)**2/(8*a*a*a*econ)
         phi=ulim/twopis
         i1m=int(a*np.sqrt(phi))
         i1m=15
@@ -165,7 +167,8 @@ def coh(lat,natom,maxb,emax):
            for i2 in range(-i2m,i2m):
               i3m=i1m
               for i3 in range(-i3m,i3m):
-                 tsq=tausq(i1,i2,i3,0,0,twothd,twopis,lat)
+                 tsq=tausq(i1,i2,i3,c1,0,twothd,twopis,lat)
+                 print(tsq)
                  if tsq>0 and tsq<=ulim:
                     tau=np.sqrt(tsq)
                     w=np.exp(-tsq*t2*wint)/tau
@@ -175,21 +178,36 @@ def coh(lat,natom,maxb,emax):
                         print('coh','storage exceeded',' ')
                     energies[k-1]=tsq
                     weights[k-1]=f
-        imax=k-1   
+        imax=k-1      
+    
+    for i in range(0,imax):
+        jmin=i+1
+        for j in range(jmin,k):
+            if energies[j]<energies[i]:
+                st=energies[i]
+                sf=weights[i]
+                energies[i]=energies[j]
+                weights[i]=weights[j]
+                energies[j]=st
+                weights[j]=sf
+    k+=1
+    energies[k]=ulim
+    weights[k]=weights[k-1]
+    maxb=2*k    
     bel=-1
-    j=0
-    for i in range(1,k):
+    j=-1
+    for i in range(0,k):
         be=energies[i]*recon
         bs=weights[i]*scon
-        if be-bel<toler:
-            weights[i]=weights[i]+bs
+        if (be-bel)<toler:
+            weights[j]=weights[j]+bs
         else:
-            j=j+1
+            j+=1
             energies[j]=be
             weights[j]=bs
+            bel=be
     nbe=j
     maxb=2*nbe
-    
     plotting(energies,weights,lat)
 def tausq(m1,m2,m3,c1,c2,twothd,twopis,lat):
     """
@@ -201,7 +219,7 @@ def tausq(m1,m2,m3,c1,c2,twothd,twopis,lat):
         return c1*(m1*m1+m2*m2+m3*m3+twothd*m1*m2+twothd*m1*m3-twothd*m2*m3)*twopis
     else:
         return c1*(m1*m1+m2*m2+m3*m3+m1*m2+m2*m3+m1*m3)*twopis
-
+        
 
 def formf(lat,l1,l2,l3):
     """
@@ -241,6 +259,9 @@ def plotting(energies,weights,lat):
     elif lat==2:
         fileName="Be"
         W=5.913523
+    elif lat==3:
+        fileName="BeO"
+        W=4
     elif lat==4:
         fileName="Al"
         W=10.5098
@@ -250,13 +271,6 @@ def plotting(energies,weights,lat):
     elif lat==6:
         fileName="Fe"
         W=4.491382
-        
-    
-    for i in range(0,len(energies)-1):
-        if energies[i]==0:
-            energies=energies[0:i]
-            weights=weights[0:i]
-            break
     
     fullE=np.logspace(-3,0.5,1000)
     fullXS=[0.0]*len(fullE)
@@ -264,17 +278,12 @@ def plotting(energies,weights,lat):
         for j in range(len(fullE)):
             if fullE[j]>energies[i] and j<=len(fullE):
                   fullXS[j]+=np.exp(-4.0*W*energies[i])*weights[i]/fullE[j]
-    
     plt.plot(fullE, fullXS,label = fileName)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('Energies (eV)')
     plt.ylabel('Cross Section (b)')
-    plt.title(fileName[0:len(fileName)-1]+' Bragg Peaks')
+    plt.title(fileName +' Bragg Peaks')
     plt.legend(loc='best')
     #plt.savefig('temp.png')
     plt.show('temp.png')
-
-
-
-    
