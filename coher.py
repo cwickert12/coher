@@ -8,7 +8,7 @@ import scipy.constants as sc
 import numpy as np
 import matplotlib.pyplot as plt
 
-def coh(lat,natom,maxb,emax):
+def coh(lat,natom,maxb,emax,flag):
     """
     Compute Bragg energies and associated 
     structure factors for coherent elastic 
@@ -17,32 +17,53 @@ def coh(lat,natom,maxb,emax):
     k=1
     imax=1
     
+    # Dictionary containing all the original material parameters from NJOY.
     materials=[
               {"a":2.4573e-8,"c":6.700e-8,"m":12.011,"x":5.5},
               {"a":2.2856e-8,"c":3.5832e-8,"m":9.01,"x":7.53},
-              {"a":2.695e-8,"c":4.39e-8,"m":12.5,"x":11.862},
-              {"a":2.856e-8,"m":26.7495,"x":1.495},
-              {"a":3.57e-8,"m":207,"x":11.115},
-              {"a":2.47e-8,"m":55.454,"x":11.22}
-              ]
+              {"a":2.695e-8,"c":4.39e-8,"m":12.5,"x":1},
+              {"a":4.04e-8,"m":26.7495,"x":1.495},
+              {"a":4.94e-8,"m":207,"x":1},
+              {"a":2.86e-8,"m":55.454,"x":12.9}
+              ] 
     
+    # Define two arrays for the energy and weight components of the bragg 
+    # vector that will be built.
     energies=[0.0]*int(maxb/2)
     weights=[0.0]*int(maxb/2)
     
+    # Shift physical constants to the units required for calculation
     eV=sc.eV*1e7
     hbar=sc.hbar*1e7
     neutron_mass=sc.neutron_mass*1e3
     atomic_mass=sc.atomic_mass*1e3
-
     econ=eV*8*neutron_mass/(hbar**2)
     recon=1/econ
     tsqx=econ/20
+    
+    # Constants hardcoded by NJOY
     twopis=39.478417604362633
     twothd=0.666666666667e0
     eps=0.05
     toler=1e-5
     wint=0
     
+    # If the flag is true, use corrected values and redefine material 
+    # parameters and constants.
+    if flag:
+        materials=[
+              {"a":2.46e-8,"c":6.71e-8,"m":12.011,"x":5.551},
+              {"a":2.226e-8,"c":3.57e-8,"m":9.0122,"x":7.63},
+              {"a":2.71e-8,"c":4.402e-8,"m":12.5,"x":11.862},
+              {"a":2.856e-8,"m":26.986,"x":1.495},
+              {"a":3.571e-8,"m":207,"x":11.115},
+              {"a":2.467e-8,"m":55.845,"x":11.22}
+              ]    
+        
+        twopis=(2*np.pi)**2
+        twothd=2/3
+    
+    # Define material parameters as variables for use in later calculations.
     a=materials[lat-1]["a"]
     amsc=materials[lat-1]["m"]
     scoh=materials[lat-1]["x"]/natom
@@ -50,6 +71,7 @@ def coh(lat,natom,maxb,emax):
     t2=hbar/(2*atomic_mass*amsc)
     ulim=econ*emax
     
+    # For all hex materials
     if lat<4:
         c=materials[lat-1]["c"]
         c1=4/(3*a**2)
@@ -130,7 +152,8 @@ def coh(lat,natom,maxb,emax):
                          energies[k-1]=tsq
                          weights[k-1]=f
         imax=k-1
-        
+       
+    # For body centered cubic materials    
     elif lat<6:
        c1=3/(a*a)
        scon=scoh*(4*np.pi)**2/(16*a*a*a*econ)
@@ -208,7 +231,8 @@ def coh(lat,natom,maxb,emax):
             bel=be
     nbe=j
     maxb=2*nbe
-    plotting(energies,weights,lat)
+    plotting(energies,weights,lat,flag)
+    
 def tausq(m1,m2,m3,c1,c2,twothd,twopis,lat):
     """
     Evaluate tausq equation
@@ -249,35 +273,22 @@ def formf(lat,l1,l2,l3):
     return formf
     
 
-def plotting(energies,weights,lat):
+def plotting(energies,weights,lat,flag):
     """
     Plot the bragg edges.
     """
-    if lat==1:
-        fileName="G"
-        W=2.836081
-    elif lat==2:
-        fileName="Be"
-        W=5.913523
-    elif lat==3:
-        fileName="BeO"
-        W=4
-    elif lat==4:
-        fileName="Al"
-        W=10.5098
-    elif lat==5:
-        fileName="Pb" 
-        W=0.112504
-    elif lat==6:
-        fileName="Fe"
-        W=4.491382
+    name=['G' 'Be' 'BeO' 'Al' 'Pb' 'Fe']
+    fileName=name(lat-1)
     
+    zero=energies.index(0)
+    energies=energies[0:zero]
+    weights=weights[0:zero]
     fullE=np.logspace(-3,0.5,1000)
     fullXS=[0.0]*len(fullE)
     for i in range(len(energies)):
         for j in range(len(fullE)):
             if fullE[j]>energies[i] and j<=len(fullE):
-                  fullXS[j]+=np.exp(-4.0*W*energies[i])*weights[i]/fullE[j]
+                  fullXS[j]+=np.exp(-4.0*energies[i])*weights[i]/fullE[j]
     plt.plot(fullE, fullXS,label = fileName)
     plt.xscale('log')
     plt.yscale('log')
@@ -287,3 +298,7 @@ def plotting(energies,weights,lat):
     plt.legend(loc='best')
     #plt.savefig('temp.png')
     plt.show('temp.png')
+
+
+
+    
